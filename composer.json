@@ -1,0 +1,33 @@
+{
+    "name": "mdbtq/laravel-page-views",
+    "description": "Privacy-first pageview tracking for Laravel",
+    "keywords": ["laravel", "analytics", "pageviews", "tracking", "privacy"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Arne Hendriksen"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/database": "^11.0|^12.0",
+        "illuminate/support": "^11.0|^12.0"
+    },
+    "suggest": {
+        "torann/geoip": "Required for automatic country resolution (~^3.0)"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mdbtq\\PageViews\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Mdbtq\\PageViews\\PageViewsServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
