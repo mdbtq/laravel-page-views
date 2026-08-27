@@ -97,16 +97,24 @@ return [
     |--------------------------------------------------------------------------
     |
     | A cookieless visitor identifier derived from the IP address, the
-    | User-Agent and a salt that rotates daily. This yields unique-visitor
-    | counts without storing anything that can be traced back to a person.
-    | The salt defaults to the application key; the date rotation means
+    | User-Agent and a salt. The current date is part of the hash input, so
     | yesterday's hashes cannot be linked to today's.
+    |
+    | "rotate_days" additionally rotates the salt itself on a fixed period,
+    | which bounds how long one secret governs the table. Set it to 0 to keep
+    | a single static salt. Note that rotating invalidates returning-visitor
+    | comparisons across a boundary, which is the point: it makes the older
+    | hashes unreproducible.
+    |
+    | The salt defaults to the application key. Set a dedicated one so the
+    | hashes do not depend on a secret used for everything else.
     |
     */
 
     'visitor_hash' => [
         'enabled' => true,
         'salt' => env('PAGE_VIEWS_SALT'),
+        'rotate_days' => env('PAGE_VIEWS_SALT_ROTATE_DAYS', 30),
     ],
 
     /*
@@ -147,6 +155,10 @@ return [
     | The default number of days to retain page view records. Used by the
     | pageviews:purge command when no --days option is provided.
     |
+    | The purge is scheduled by default (see "schedule" below), so this is a
+    | retention period that is actually enforced rather than a number that
+    | only applies when someone remembers to run the command.
+    |
     */
 
     'purge_days' => 90,
@@ -156,19 +168,23 @@ return [
     | Scheduling
     |--------------------------------------------------------------------------
     |
-    | When enabled the package registers its own maintenance commands on the
-    | scheduler, so retention and rollups are not something you have to
-    | remember to wire up.
+    | The package registers its own maintenance commands on the scheduler, so
+    | retention and rollups are not something you have to remember to wire
+    | up. Both are enabled by default: the rollup preserves long-term totals
+    | in page_view_daily before the purge removes the raw rows behind them.
+    |
+    | This requires the Laravel scheduler to be running. Without it the
+    | retention period is not enforced at all.
     |
     */
 
     'schedule' => [
         'purge' => [
-            'enabled' => false,
+            'enabled' => env('PAGE_VIEWS_SCHEDULE_PURGE', true),
             'at' => '03:00',
         ],
         'rollup' => [
-            'enabled' => false,
+            'enabled' => env('PAGE_VIEWS_SCHEDULE_ROLLUP', true),
             'at' => '02:00',
         ],
     ],

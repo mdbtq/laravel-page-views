@@ -14,7 +14,8 @@ use Illuminate\Support\Carbon;
  * @property string|null $utm_source
  * @property string|null $utm_medium
  * @property string|null $utm_campaign
- * @property string|null $user_agent
+ * @property string|null $browser
+ * @property string|null $platform
  * @property string $ip_anon
  * @property string|null $visitor_hash
  * @property string|null $country
@@ -32,7 +33,8 @@ class PageView extends Model
         'utm_source',
         'utm_medium',
         'utm_campaign',
-        'user_agent',
+        'browser',
+        'platform',
         'ip_anon',
         'visitor_hash',
         'country',

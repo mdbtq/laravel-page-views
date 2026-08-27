@@ -12,6 +12,7 @@ use Mdbtq\PageViews\Support\BotDetector;
 use Mdbtq\PageViews\Support\CountryResolver;
 use Mdbtq\PageViews\Support\IpAnonymizer;
 use Mdbtq\PageViews\Support\ReferrerParser;
+use Mdbtq\PageViews\Support\UserAgentSummarizer;
 use Mdbtq\PageViews\Support\VisitorHasher;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -31,6 +32,7 @@ class PageViewRecorder
         private readonly BotDetector $botDetector,
         private readonly VisitorHasher $visitorHasher,
         private readonly ReferrerParser $referrerParser,
+        private readonly UserAgentSummarizer $userAgents,
         private readonly CountryResolver $countryResolver,
     ) {}
 
@@ -128,7 +130,8 @@ class PageViewRecorder
             'route' => $request->route()?->getName(),
             'referrer' => $this->truncate($referrer, 1024),
             'referrer_host' => $this->referrerParser->host($referrer),
-            'user_agent' => $this->truncate($userAgent, 1024),
+            'browser' => $this->userAgents->browser($userAgent),
+            'platform' => $this->userAgents->platform($userAgent),
             'ip_anon' => $this->ipAnonymizer->anonymize($ip),
             'visitor_hash' => $this->visitorHasher->hash($ip, $userAgent, $now->toDateString()),
             'country' => $this->countryResolver->resolve($ip),

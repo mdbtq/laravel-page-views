@@ -17,7 +17,8 @@ return new class extends Migration
             $table->string('utm_source')->nullable();
             $table->string('utm_medium')->nullable();
             $table->string('utm_campaign')->nullable();
-            $table->string('user_agent', 1024)->nullable();
+            $table->string('browser', 32)->nullable();
+            $table->string('platform', 32)->nullable();
             $table->string('ip_anon', 45);
             $table->string('visitor_hash', 64)->nullable();
             $table->string('country', 2)->nullable();

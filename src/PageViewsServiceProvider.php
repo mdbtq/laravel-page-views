@@ -5,13 +5,16 @@ namespace Mdbtq\PageViews;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Support\ServiceProvider;
+use Mdbtq\PageViews\Console\ImportPageViewsCommand;
 use Mdbtq\PageViews\Console\PageViewStatsCommand;
 use Mdbtq\PageViews\Console\PurgePageViewsCommand;
 use Mdbtq\PageViews\Console\RollupPageViewsCommand;
 use Mdbtq\PageViews\Support\BotDetector;
 use Mdbtq\PageViews\Support\CountryResolver;
 use Mdbtq\PageViews\Support\IpAnonymizer;
+use Mdbtq\PageViews\Support\LogLineParser;
 use Mdbtq\PageViews\Support\ReferrerParser;
+use Mdbtq\PageViews\Support\UserAgentSummarizer;
 use Mdbtq\PageViews\Support\VisitorHasher;
 
 class PageViewsServiceProvider extends ServiceProvider
@@ -21,7 +24,9 @@ class PageViewsServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/../config/page-views.php', 'page-views');
 
         $this->app->singleton(IpAnonymizer::class);
+        $this->app->singleton(LogLineParser::class);
         $this->app->singleton(ReferrerParser::class);
+        $this->app->singleton(UserAgentSummarizer::class);
         $this->app->singleton(CountryResolver::class);
         $this->app->singleton(BotDetector::class);
         $this->app->singleton(VisitorHasher::class);
@@ -47,6 +52,7 @@ class PageViewsServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->commands([
+                ImportPageViewsCommand::class,
                 PageViewStatsCommand::class,
                 PurgePageViewsCommand::class,
                 RollupPageViewsCommand::class,

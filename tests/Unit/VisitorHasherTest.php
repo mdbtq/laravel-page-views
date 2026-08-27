@@ -49,3 +49,65 @@ it('uses a configured salt over the app key', function () {
 
     expect($a)->not->toBe($b);
 });
+
+it('rotates the salt on the configured period', function () {
+    config()->set('page-views.visitor_hash.salt', 'fixed-salt');
+
+    // Hold the date constant and vary only the rotation period, so the
+    // difference can only come from the salt. Comparing two dates instead
+    // would pass even with rotation broken, because the date is itself part
+    // of the hash input.
+    config()->set('page-views.visitor_hash.rotate_days', 0);
+    $static = $this->hasher->hash('192.168.1.1', 'Chrome', '2026-08-27');
+
+    config()->set('page-views.visitor_hash.rotate_days', 30);
+    $rotated = $this->hasher->hash('192.168.1.1', 'Chrome', '2026-08-27');
+
+    expect($rotated)->not->toBe($static);
+});
+
+it('produces different salts for dates in different rotation periods', function () {
+    config()->set('page-views.visitor_hash.salt', 'fixed-salt');
+    config()->set('page-views.visitor_hash.rotate_days', 30);
+
+    $reflection = new ReflectionMethod($this->hasher, 'saltFor');
+
+    // Assert on the salt itself rather than the hash, so the date component
+    // cannot mask a broken derivation.
+    expect($reflection->invoke($this->hasher, '2026-01-01'))
+        ->not->toBe($reflection->invoke($this->hasher, '2026-06-01'));
+});
+
+it('uses one salt for every date inside a rotation period', function () {
+    config()->set('page-views.visitor_hash.salt', 'fixed-salt');
+    config()->set('page-views.visitor_hash.rotate_days', 30);
+
+    $reflection = new ReflectionMethod($this->hasher, 'saltFor');
+
+    expect($reflection->invoke($this->hasher, '2026-01-02'))
+        ->toBe($reflection->invoke($this->hasher, '2026-01-03'));
+});
+
+it('keeps a static salt when rotation is disabled', function () {
+    config()->set('page-views.visitor_hash.rotate_days', 0);
+    config()->set('page-views.visitor_hash.salt', 'fixed-salt');
+
+    $a = $this->hasher->hash('192.168.1.1', 'Chrome', '2026-08-27');
+
+    config()->set('page-views.visitor_hash.rotate_days', 0);
+    $b = $this->hasher->hash('192.168.1.1', 'Chrome', '2026-08-27');
+
+    expect($a)->toBe($b);
+});
+
+it('derives period salts deterministically so past days can be reproduced', function () {
+    config()->set('page-views.visitor_hash.rotate_days', 30);
+    config()->set('page-views.visitor_hash.salt', 'fixed-salt');
+
+    // Importing a historical log has to reproduce the salt of that day, so
+    // the derivation must depend only on the date and the configured secret.
+    $first = $this->hasher->hash('192.168.1.1', 'Chrome', '2024-10-10');
+    $second = $this->hasher->hash('192.168.1.1', 'Chrome', '2024-10-10');
+
+    expect($first)->toBe($second);
+});

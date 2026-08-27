@@ -2,9 +2,11 @@
 
 Privacy-first pageview tracking for Laravel. Records page views with anonymized IPs, cookieless visitor counting, bot filtering and optional country resolution — all without external services.
 
-- No cookies, no consent banner, no third-party requests
-- IP addresses are truncated before they are stored
-- Visitors are counted through a daily-rotating hash that cannot be traced back to a person
+- No cookies and nothing read from the device, so no consent banner
+- No third-party requests; nothing leaves your server
+- IP addresses are truncated and the raw User-Agent is never stored
+- Visitors are counted through a daily-rotating hash whose inputs are not retained
+- Works behind full-page caching by importing access logs
 - Writes happen after the response is sent, and never break the request
 
 ## Requirements
@@ -54,9 +56,9 @@ Tracking runs in the middleware's `terminate()` method, so it happens after the 
 | `referrer` | Full referrer URL |
 | `referrer_host` | Bare host (`google.com`), for fast grouping |
 | `utm_source`, `utm_medium`, `utm_campaign` | Campaign attribution; the rest of the query string is discarded |
-| `user_agent` | Raw User-Agent string |
+| `browser`, `platform` | Coarse labels (`Chrome`, `macOS`); the raw User-Agent is never stored |
 | `ip_anon` | IPv4 truncated to /24, IPv6 to /48 |
-| `visitor_hash` | Daily-rotating SHA-256 of IP + User-Agent + salt |
+| `visitor_hash` | Daily-rotating SHA-256 of IP + User-Agent + salt; inputs are not retained |
 | `country` | Two-letter code, when a geo resolver is installed |
 | `viewed_at` | Timestamp |
 
@@ -75,6 +77,7 @@ A page view is skipped when the request is not a `GET`, the response status is n
 | `anonymize_ip` | `true` | Truncate IPv4 to /24 and IPv6 to /48 |
 | `visitor_hash.enabled` | `true` | Enable cookieless visitor counting |
 | `visitor_hash.salt` | App key | Hash salt (`PAGE_VIEWS_SALT`) |
+| `visitor_hash.rotate_days` | `30` | Rotate the salt every N days; `0` disables (`PAGE_VIEWS_SALT_ROTATE_DAYS`) |
 | `track_utm` | `true` | Capture UTM campaign parameters |
 | `driver` | `sync` | `sync` or `queue` (`PAGE_VIEWS_DRIVER`) |
 | `purge_days` | `90` | Default retention for the purge command |
@@ -83,15 +86,44 @@ A page view is skipped when the request is not a `GET`, the response status is n
 
 ### Visitor counting
 
-Unique visitors are counted through a hash of the IP address, the User-Agent and a salt that includes the current date. Because the date is part of the input, the same visitor produces a different hash tomorrow, and yesterday's records cannot be correlated with today's. Nothing that identifies a person is stored.
+Unique visitors are counted through a hash of the IP address, the User-Agent and
+a salt that includes the current date. Because the date is part of the input, the
+same visitor produces a different hash tomorrow, and yesterday's records cannot
+be correlated with today's.
 
-Set a dedicated salt to keep the value independent of `APP_KEY`:
+That rotation only holds if the hash inputs are not recoverable, which is why the
+raw User-Agent is never stored and the IP is truncated before it is written. The
+stored row does not contain enough to recompute its own hash.
+
+Set a dedicated salt so the hashes do not depend on a secret used for everything
+else:
 
 ```env
 PAGE_VIEWS_SALT=some-long-random-string
+PAGE_VIEWS_SALT_ROTATE_DAYS=30
 ```
 
-When `visitor_hash.enabled` is `false`, unique-visitor counts fall back to distinct anonymized IPs.
+The salt itself rotates every 30 days by default, bounding how long a single
+secret governs the whole table. Rotation deliberately makes hashes from earlier
+periods unreproducible, so returning-visitor comparisons do not span a boundary.
+Set `PAGE_VIEWS_SALT_ROTATE_DAYS=0` to keep one static salt.
+
+When `visitor_hash.enabled` is `false`, unique-visitor counts fall back to
+distinct anonymized IPs.
+
+### What this does and does not claim
+
+The package stores no cookies and reads nothing from the visitor's device, so it
+stays outside the consent requirement in article 5(3) of the ePrivacy directive
+(in the Netherlands, article 11.7a Tw). That is the basis for running it without
+a cookie banner.
+
+It does not follow that the GDPR stops applying. You still need a lawful basis
+for the processing (typically legitimate interest), a retention period that is
+actually enforced, and a mention in your privacy statement. The defaults here are
+built to support that — anonymized IPs, no raw User-Agent, rotating salts, and a
+scheduled purge — but the assessment is yours to make, and this is not legal
+advice.
 
 ### Queued writes
 
@@ -153,21 +185,61 @@ php artisan pageviews:rollup --days=30
 php artisan pageviews:purge
 php artisan pageviews:purge --days=30
 php artisan pageviews:purge --dry-run
+
+# Import from an access log
+php artisan pageviews:import /var/log/nginx/access.log
+php artisan pageviews:import access.log --since=2024-10-01 --host=example.com
+php artisan pageviews:import access.log --dry-run
+cat access.log | php artisan pageviews:import -
 ```
 
 `--days` sets the reporting window and `--top` limits the ranked breakdowns; the daily series always covers the full window.
+
+### Importing from access logs
+
+The middleware only sees requests that reach PHP. Full-page caching at a CDN or
+in nginx serves a hit without ever touching Laravel, so those visits are missing
+from the table. `pageviews:import` closes that gap by reading the access log,
+which records the request regardless of who answered it.
+
+Log entries run through the same recorder as live traffic, so bot filtering,
+excluded paths, IP anonymization and visitor hashing behave identically. The
+visitor hash is derived with the salt of the day the request was served, which
+keeps the daily rotation intact for imported rows.
+
+Two formats are recognised: the NCSA combined format that nginx and Apache emit
+by default, and JSON, which covers most CDN log pipelines (field names from
+nginx and Cloudflare are both understood). Lines that cannot be parsed are
+counted and skipped rather than aborting the run.
+
+| Option | Purpose |
+| --- | --- |
+| `--since` | Skip entries before this date/time |
+| `--timezone` | Timezone of log timestamps without an explicit offset |
+| `--host` | Hostname used to resolve paths from absolute URLs |
+| `--chunk` | Rows per insert statement |
+| `--dry-run` | Report what would be imported without writing |
+
+The command has no memory of previous runs, so overlapping imports insert
+duplicates. Use `--since` to bound each run, or import whole rotated log files
+exactly once.
 
 ### Retention and history
 
 `pageviews:purge` deletes raw rows in chunks so a large backlog does not hold one long transaction open. `pageviews:rollup` aggregates raw views into `page_view_daily` (per day, path and country), which keeps long-term history even when raw rows are purged aggressively. Re-running the rollup for a day replaces that day's totals, so it is safe to run repeatedly.
 
-Enable both in the config to have the package schedule them for you:
+Both are scheduled by default, so the retention period in `purge_days` is
+enforced rather than advisory. The rollup runs first, preserving long-term totals
+in `page_view_daily` before the purge removes the raw rows behind them.
 
-```php
-'schedule' => [
-    'purge' => ['enabled' => true, 'at' => '03:00'],
-    'rollup' => ['enabled' => true, 'at' => '02:00'],
-],
+This requires the Laravel scheduler to be running. Without it nothing is purged
+and the table grows indefinitely.
+
+Disable either one if you want to run them yourself:
+
+```env
+PAGE_VIEWS_SCHEDULE_PURGE=false
+PAGE_VIEWS_SCHEDULE_ROLLUP=false
 ```
 
 ## Testing

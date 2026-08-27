@@ -15,7 +15,7 @@ it('creates every tracked column', function () {
     expect(Schema::hasColumns('page_views', [
         'path', 'route', 'referrer', 'referrer_host',
         'utm_source', 'utm_medium', 'utm_campaign',
-        'user_agent', 'ip_anon', 'visitor_hash', 'country', 'viewed_at',
+        'browser', 'platform', 'ip_anon', 'visitor_hash', 'country', 'viewed_at',
     ]))->toBeTrue();
 });
 
