@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `enabled` master switch and configurable `trackable_status_codes`.
 - Test suite (Pest + Testbench) running on SQLite, MySQL and PostgreSQL, with Pint and PHPStan in CI.
 
+### Changed
+
+- Support Laravel 12 and 13. Laravel 11 is dropped: every 11.x release, up to
+  and including the final v11.56.1, is flagged by security advisories with no
+  patched release available, so Composer refuses to install it.
+
 ### Fixed
 
 - IPv6 anonymization produced invalid addresses. `inet_ntop()` returns the compressed form, so splitting on `:` did not yield eight groups and output such as `2001:db8::0:0:0:0:0` was stored. Addresses are now expanded from their binary form and truncated to a /48.
