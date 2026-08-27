@@ -10,8 +10,17 @@
     ],
     "require": {
         "php": "^8.2",
+        "illuminate/console": "^11.0|^12.0",
         "illuminate/database": "^11.0|^12.0",
+        "illuminate/http": "^11.0|^12.0",
         "illuminate/support": "^11.0|^12.0"
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.18",
+        "orchestra/testbench": "^9.0|^10.0",
+        "pestphp/pest": "^3.0",
+        "phpstan/phpstan": "^2.0"
     },
     "suggest": {
         "torann/geoip": "Required for automatic country resolution (~^3.0)"
@@ -21,11 +30,28 @@
             "Mdbtq\\PageViews\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Mdbtq\\PageViews\\Tests\\": "tests/"
+        }
+    },
     "extra": {
         "laravel": {
             "providers": [
                 "Mdbtq\\PageViews\\PageViewsServiceProvider"
             ]
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "lint": "pint",
+        "lint:test": "pint --test",
+        "analyse": "phpstan analyse"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
         }
     },
     "minimum-stability": "stable",
